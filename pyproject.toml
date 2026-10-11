@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "notehatch"
+version = "1.0.0"
+description = "Export your NoteRepo daily notes to plain Markdown files (independent tool)."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+notehatch = "notehatch.cli:main"
+
+[tool.setuptools]
+packages = ["notehatch"]

@@ -1,0 +1,120 @@
+Metadata-Version: 2.4
+Name: notehatch
+Version: 1.0.0
+Summary: Export your NoteRepo daily notes to plain Markdown files (independent tool).
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+
+# NoteHatch
+
+NoteHatch is an independent implementation, not affiliated with or endorsed by NoteRepo's maker (Flavio Copes), and it was built against NoteRepo 1.2.0.
+
+It is a command-line tool that reads NoteRepo's local database **read-only** and exports every day that has content to its own plain Markdown file (`YYYY-MM-DD.md`), keeping the note text byte-for-byte, the date and the last-modified time, and saving images as ordinary files. It opens no network ports and sends nothing anywhere.
+
+## Install
+
+Needs Python 3.11+ (standard library only). From this folder, on macOS, Linux or Windows:
+
+```
+python -m pip install .
+```
+
+(`pipx install .` also works.) `notehatch` is then on your PATH; check with `notehatch --version`.
+
+## Try it
+
+```
+notehatch demo ./demo-notes
+notehatch locate --source ./demo-notes
+notehatch list --source ./demo-notes
+notehatch export ~/NotesExport --source ./demo-notes
+notehatch verify ~/NotesExport --source ./demo-notes
+```
+
+## Commands
+
+Every command accepts `--help`. Options `--source`, `--config` and `--set KEY=VALUE` apply where they make sense.
+
+| command | what it does |
+|---|---|
+| `locate` | Finds the database, checks the schema, prints path, days with content, empty rows, images, date range, notes without `updated_at`. |
+| `demo DIR` | Writes a demo NoteRepo-format `DIR/notes.sqlite3` (70 content days, empty rows, NULL timestamps, 6 images, a dangling image reference, a malformed date key). Refuses if the file exists. |
+| `list [--from D] [--to D] [--json]` | One line per day with content, newest first: date, title, last update (local time), line count, image count. |
+| `show DATE [--json]` | Prints exactly the file an export would write (current settings). The referenced images are listed on stderr (or in the JSON). |
+| `export DIR [--from D] [--to D] [--dry-run] [--force] [--rebuild-manifest]` | Writes the notes. Re-running only rewrites new/changed days. |
+| `verify DIR [--from D] [--to D] [--json]` | Compares an export folder with the source (existence, bytes, front matter, image SHA-256). |
+| `config` / `config set KEY VALUE` | Lists settings with their source / saves one to the config file. |
+
+### Where the database is looked for
+
+1. `--source` (a folder, a `notes.sqlite3` file, or a NoteRepo backup folder)
+2. `NOTEHATCH_SOURCE`
+3. `NOTEREPO_DATA_DIR`
+4. macOS `~/Library/Application Support/NoteRepo`; Linux `$XDG_CONFIG_HOME/NoteRepo` then `~/.config/NoteRepo` (unverified); Windows `%APPDATA%\NoteRepo` (unverified)
+
+An explicit `--source`/`NOTEHATCH_SOURCE` that does not exist is an error; it is never replaced by another database. The database is opened through SQLite in read-only mode (so the WAL is included), waits up to 5 seconds on a lock, and everything is read in one snapshot transaction. SQLite may create its `-shm` helper file next to a WAL database; nothing in the source is ever written.
+
+### What an export contains
+
+* `YYYY-MM-DD.md` per day with content (flat), mode 0600, folders 0700. A day has content if some line, trimmed, is not empty and not just `-` or `N.`.
+* YAML front matter (`date`, quoted `title` such as `Wed, October 7th, 2026`, `updated` when known, `source: NoteRepo 1.2.0`), a blank line, then the note verbatim. Only image links are rewritten (under `extract`).
+* File modification time = `updated_at`; for notes without it, 12:00 local time on the note's date.
+* Images used by exported notes go to `assets/<first 16 hex of id>.<ext>` (the full id if two ids share the prefix), written once.
+* `.notehatch/manifest.json` (tool version, source, per-file hashes, images) and `.notehatch/lock`.
+* Rows with a malformed date key are skipped with a warning; dangling image references stay as they are with a warning. Files are never deleted.
+* Summary invariant: written + unchanged + conflicts + skipped-invalid = days with content in scope.
+
+### Re-exporting
+
+Days are classified as new, changed (source content or `updated_at` differs, or a setting changes the output), unchanged, edited-in-export (file differs from the manifest) or gone-from-source. Unchanged files are not touched (modification times stay). Edited files follow `export.edited_files`; gone days are kept and listed. A folder with no manifest that already contains a file we would write needs `--force`. A manifest from a different source needs `--force`. A corrupt manifest: use `--rebuild-manifest`. A lock older than one hour whose process is gone is removed with a notice.
+
+Ctrl-C (or SIGTERM) stops cleanly: finished files stay, the manifest records exactly them, no temp file or lock is left; run the export again to finish.
+
+### Settings
+
+Precedence: flags (`--set key=value`) > environment (`NOTEHATCH_<KEY>`, dots as underscores, e.g. `NOTEHATCH_EXPORT_IMAGES`) > config file > defaults. The config file is TOML (`NOTEHATCH_CONFIG` or `--config` to choose it; default `~/.config/notehatch/config.toml`, `~/Library/Application Support/NoteHatch/config.toml`, or `%APPDATA%\NoteHatch\config.toml`):
+
+```toml
+[export]
+images = "keep"
+```
+
+| key | values | default | meaning |
+|---|---|---|---|
+| `export.front_matter` | yaml, none | yaml | start each file with front matter, or body only |
+| `export.images` | extract, keep | extract | save images under `assets/` and rewrite links, or leave `noterepo:image:` references |
+| `export.edited_files` | keep, overwrite | keep | on re-export, keep (and report) files you edited, or replace them |
+| `export.mtime` | updated, export_time | updated | file times follow the note's update time or the export moment |
+| `export.empty_days` | skip, include | skip | skip rows without content, or write them with an empty body |
+
+## Configuration
+
+Besides the five settings above, these decide questions the scope leaves open. Each is one value for the whole system, can be set with `--set`, the config file or `NOTEHATCH_<KEY>`, and is also overridden by the plain environment variable named below, which wins over everything when set.
+
+| key | values (default first) | env override |
+|---|---|---|
+| `export.unknown_folder` | `refuse_any_files`: an output folder with no manifest that holds any file is refused without `--force`; `refuse_on_overlap`: refused only when a file would be overwritten | `EXPORT_UNKNOWN_FOLDER` |
+| `export.unchanged_exit` | `success`: a re-export that writes nothing exits 0; `warn`: it exits 1 | `EXPORT_UNCHANGED_EXIT` |
+| `verify.scope` | `all_source_days`: every source day with content must have a matching file; `manifest_days`: only days recorded in the manifest are checked (handy after a partial export) | `VERIFY_SCOPE` |
+| `export.missing_files` | `rewrite`: an exported file you deleted is written again; `conflict`: it is reported as a conflict and not recreated | `EXPORT_MISSING_FILES` |
+| `lock.stale_requires_age` | `true`: a lock is removed only when it is over 1 hour old and its process is gone; `false`: removed whenever its process is gone | `LOCK_STALE_REQUIRES_AGE` |
+| `source.env_precedence` | `notehatch_first`: `NOTEHATCH_SOURCE` is used before `NOTEREPO_DATA_DIR`; `noterepo_first`: the other way round | `SOURCE_ENV_PRECEDENCE` |
+| `export.mtime_change_rewrites` | `true`: changing `export.mtime` marks existing files as changed so their modification times are updated; `false`: the change only affects files written for other reasons | `EXPORT_MTIME_CHANGE_REWRITES` |
+
+### Exit codes
+
+0 success · 1 completed with warnings, conflicts, or nothing to export · 2 usage/config error (or `verify` on a non-export folder) · 3 source not found, unreadable or busy · 4 unsupported schema · 5 output error · 130 interrupted.
+
+`verify` exits 1 when a note is missing, out of date or edited, or an image is missing/altered. Orphaned files (for example days since removed from the source) are listed but are not a failure. A re-export that finds everything unchanged exits 0.
+
+### Backing up and restoring
+
+An export is just a folder: copy it to back it up, copy it back to restore, then run `notehatch verify`. The manifest has a format version; newer NoteHatch versions upgrade older manifests in place.
+
+## Tests
+
+```
+python -m unittest discover -s tests -t .
+```
+
+The suite builds its own fixture databases (WAL-only writes, busy lock, NULL timestamps, empty/bare-marker rows, bad keys, every MIME type, dangling/repeated images, hash mismatches, ordinals, incremental classes, interrupt recovery, verify mismatches, settings).
