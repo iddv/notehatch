@@ -1,3 +1,5 @@
+LICENSE
+NOTICE
 README.md
 pyproject.toml
 notehatch/__init__.py

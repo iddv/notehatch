@@ -9,6 +9,7 @@ labels:
   - {"name": "security", "color": "003d99", "description": "A security weakness (report serious ones privately)"}
   - {"name": "dependency", "color": "7aa6e8", "description": "A dependency or Actions update"}
   - {"name": "docs", "color": "a2c4f0", "description": "README, AGENTS.md or SECURITY text"}
+  - {"name": "task", "color": "4f86c6", "description": "Upkeep with no failing behaviour: a test, a fixture, a chore"}
   # flow
   - {"name": "triage", "color": "fef2c0", "description": "Nobody has classified this yet"}
   - {"name": "needs-info", "color": "fbca04", "description": "Waiting for the reporter to answer a question"}
