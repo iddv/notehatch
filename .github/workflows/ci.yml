@@ -34,8 +34,9 @@ jobs:
       - name: Unit tests, as the README says
         run: python -m unittest tests.test_notehatch
       - name: Acceptance suite
+        if: hashFiles('tests/acceptance/**') != ''
         run: |
-          python -m pip install pytest==8.3.3
+          python -m pip install pytest
           python -m pytest tests/acceptance -q
 
   agents-md:

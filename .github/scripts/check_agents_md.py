@@ -83,7 +83,9 @@ def serve(cmd, note, env):
             if answers(port):
                 print(f"ok    {cmd}  (answered on 127.0.0.1:{port})")
                 return None
-            if p.poll() is not None:
+            # the line has ended: a failure, or a start that detached (`start -d` exits 0 at
+            # once); the second waits while what it started is still running
+            if p.poll() is not None and (p.returncode or not [x for x in marked(mark) if not _zombie(x)]):
                 break
             time.sleep(0.5)
         log.seek(0)

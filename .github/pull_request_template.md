@@ -9,7 +9,6 @@
 - [ ] The README's quick start still works as written
 - [ ] AGENTS.md updated, or unchanged on purpose
 - [ ] `SECURITY.md`'s known issues updated if they changed
-- [ ] A line under *Unreleased* in `CHANGELOG.md`
 - [ ] No changes under `.github/workflows/` (fix PRs never touch CI)
 - [ ] No secret, database file or demo credential committed
 

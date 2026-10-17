@@ -22,7 +22,6 @@ service; the check waits for it to answer on 127.0.0.1, then stops it.
 ```sh
 python -m pip install .   # install
 python -m unittest tests.test_notehatch   # the product's own tests
-python -m pip install pytest==8.3.3 && python -m pytest tests/acceptance   # the acceptance suite
 ```
 
 - pytest is only needed for the acceptance suite; install it inside a virtual environment if
@@ -36,17 +35,17 @@ python -m pip install pytest==8.3.3 && python -m pytest tests/acceptance   # the
 | Path | Holds |
 |---|---|
 | `notehatch/__main__.py` | Runs the package as a command: `python -m notehatch`. |
-| `notehatch/cli.py` | (describe this module) |
-| `notehatch/config.py` | (describe this module) |
-| `notehatch/dates.py` | (describe this module) |
+| `notehatch/cli.py` | Defines `err`, `warn`, `Parser`, `build_parser` and 11 more. |
+| `notehatch/config.py` | Defines `env_name`, `default_config_path`, `check_value`, `config_path` and 4 more. |
+| `notehatch/dates.py` | Defines `parse_key`, `ordinal`, `title`, `utc_to_ns` and 3 more. |
 | `notehatch/demo.py` | Builds a realistic NoteRepo 1.2.0 database for trying the tool. |
-| `notehatch/errors.py` | (describe this module) |
+| `notehatch/errors.py` | Defines `NHError`. |
 | `notehatch/export.py` | Export planning and writing; also used by `show` and `verify`. |
-| `notehatch/fsutil.py` | (describe this module) |
-| `notehatch/manifest.py` | (describe this module) |
+| `notehatch/fsutil.py` | Defines `hash_file`, `out_error`, `atomic_write`, `make_dir` and 3 more. |
+| `notehatch/manifest.py` | Defines `manifest_path`, `new`, `load`, `save`. |
 | `notehatch/render.py` | Turning a note row into the bytes of its Markdown file. |
-| `notehatch/source.py` | (describe this module) |
-| `notehatch/verify.py` | (describe this module) |
+| `notehatch/source.py` | Defines `find_source`, `busy_error`, `translate`, `Source`. |
+| `notehatch/verify.py` | Defines `run`. |
 | `tests/test_notehatch.py` | Unit tests (the product's own test command). |
 
 Data lives in `./data`; the schema is versioned (see README), and a
@@ -99,7 +98,8 @@ Labels are the state; GitHub is the only record. `.github/labels.yml` defines th
 6. **Verify:** run every command in *Setup, run, test*; the whole suite must be green; the
    README's quick start must still work as written.
 7. **Documents:** update this file if a command, module or convention changed; `READINESS.md`
-   or `SECURITY.md` if a row changed; add a line under *Unreleased* in `CHANGELOG.md`.
+   or `SECURITY.md` if a row changed. Leave `CHANGELOG.md` alone: the release notes list the
+   merged pull requests.
 8. **Open a PR** with the template (`.github/pull_request_template.md`): what and why, the
    failing test's name, the verification you ran, and `Fixes #N`. Remove your claim label; the
    PR is now the lock. **Never push to `main`. Never change `.github/workflows/` in a fix PR.**

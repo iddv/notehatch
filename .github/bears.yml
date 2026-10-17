@@ -17,7 +17,7 @@ revise:
                               #     opened once triaged (bears adds go itself) | off
   auto_go: off                # off | patch: bears adds `go` to bug/security issues at p1 or p2
                               #     opened by the owner or a collaborator with write access
-  kinds: ["bug", "security", "docs", "dependency"]   # feature needs an explicit go from the owner
+  kinds: ["bug", "security", "docs", "dependency"]   # what bears may label go by itself; the owner's go starts any kind
   max_attempts: 2             # failure comments before `needs-you`
   lease_hours: 6
   max_usd: null               # per revise; null = no cap; the loop's maintain.max_usd
@@ -25,8 +25,15 @@ revise:
   models: {}                  # per-stage overrides, same roles as Settings › Models; {} = default
 
 merge:
-  bears_patch: never          # never | ci-green: bears merges its own PR for a `bug`/`docs`
-                              #   fix when CI is green and the diff is under merge.max_lines
+  bears_patch: never          # never | ci-green: bears merges its own fix PR (squash), one
+                              #   per poll, oldest first, when every check on its head commit
+                              #   passed (at least one: no CI, no merge), it is up to date with
+                              #   main, its kind is in merge.kinds and its diff is at most
+                              #   merge.max_lines. Never merged by bears, whatever this says: a
+                              #   `feature`; a PR touching .github/, LICENSE, NOTICE or a
+                              #   lockfile; one labelled `hold` or `needs-you`; one with changes
+                              #   requested; one you pushed commits to; anyone else's PR.
+  kinds: ["bug", "docs"]         # of bug | docs | security | dependency (feature: never)
   max_lines: 80
   dependabot: never           # never | patch | minor: merge Dependabot PRs of that level
                               #   when CI is green (Actions bumps are `patch`)

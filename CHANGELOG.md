@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to NoteHatch. Releases are tagged on GitHub; their notes list the merged
-pull requests. Add a line under *Unreleased* in the same PR as the change.
+pull requests, so a pull request leaves this file alone.
 
 ## Unreleased
 

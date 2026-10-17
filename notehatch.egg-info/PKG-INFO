@@ -4,12 +4,15 @@ Version: 1.0.0
 Summary: Export your NoteRepo daily notes to plain Markdown files (independent tool).
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
+License-File: LICENSE
+License-File: NOTICE
+Dynamic: license-file
 
 # NoteHatch
 
 NoteHatch is an independent implementation, not affiliated with or endorsed by NoteRepo's maker (Flavio Copes), and it was built against NoteRepo 1.2.0.
 
-It is a command-line tool that reads NoteRepo's local database **read-only** and exports every day that has content to its own plain Markdown file (`YYYY-MM-DD.md`), keeping the note text byte-for-byte, the date and the last-modified time, and saving images as ordinary files. It opens no network ports and sends nothing anywhere.
+It is a command-line tool that reads NoteRepo's local database **read-only** and exports every day that has content to its own plain Markdown file (`YYYY-MM-DD.md`), keeping the note text as written (image links are rewritten by default), the date and the last-modified time, and saving images as ordinary files. It opens no network ports and sends nothing anywhere.
 
 ## Install
 
@@ -52,7 +55,7 @@ Every command accepts `--help`. Options `--source`, `--config` and `--set KEY=VA
 3. `NOTEREPO_DATA_DIR`
 4. macOS `~/Library/Application Support/NoteRepo`; Linux `$XDG_CONFIG_HOME/NoteRepo` then `~/.config/NoteRepo` (unverified); Windows `%APPDATA%\NoteRepo` (unverified)
 
-An explicit `--source`/`NOTEHATCH_SOURCE` that does not exist is an error; it is never replaced by another database. The database is opened through SQLite in read-only mode (so the WAL is included), waits up to 5 seconds on a lock, and everything is read in one snapshot transaction. SQLite may create its `-shm` helper file next to a WAL database; nothing in the source is ever written.
+An explicit `--source`/`NOTEHATCH_SOURCE` that does not exist is an error; it is never replaced by another database. The database is opened through SQLite in read-only mode (so the WAL is included), waits up to 5 seconds on a lock, and everything is read in one snapshot transaction. SQLite may create its `-shm` helper file next to a WAL database; NoteHatch does not modify the NoteRepo database.
 
 ### What an export contains
 
@@ -61,12 +64,12 @@ An explicit `--source`/`NOTEHATCH_SOURCE` that does not exist is an error; it is
 * File modification time = `updated_at`; for notes without it, 12:00 local time on the note's date.
 * Images used by exported notes go to `assets/<first 16 hex of id>.<ext>` (the full id if two ids share the prefix), written once.
 * `.notehatch/manifest.json` (tool version, source, per-file hashes, images) and `.notehatch/lock`.
-* Rows with a malformed date key are skipped with a warning; dangling image references stay as they are with a warning. Files are never deleted.
+* Rows with a malformed date key are skipped with a warning; dangling image references stay as they are with a warning. NoteHatch never deletes exported notes or images; it removes only its own lock and temporary files.
 * Summary invariant: written + unchanged + conflicts + skipped-invalid = days with content in scope.
 
 ### Re-exporting
 
-Days are classified as new, changed (source content or `updated_at` differs, or a setting changes the output), unchanged, edited-in-export (file differs from the manifest) or gone-from-source. Unchanged files are not touched (modification times stay). Edited files follow `export.edited_files`; gone days are kept and listed. A folder with no manifest that already contains a file we would write needs `--force`. A manifest from a different source needs `--force`. A corrupt manifest: use `--rebuild-manifest`. A lock older than one hour whose process is gone is removed with a notice.
+Days are classified as new, changed (source content or `updated_at` differs, or a setting changes the output), unchanged, edited-in-export (file differs from the manifest) or gone-from-source. Unchanged files are not touched (modification times stay). Edited files follow `export.edited_files`; gone days are kept and listed. A folder with no manifest that already contains a file we would write needs `--force`. A manifest from a different source needs `--force`. A corrupt manifest: use `--rebuild-manifest`. A lock whose process is gone is removed with a notice (so a killed run restarts at once).
 
 Ctrl-C (or SIGTERM) stops cleanly: finished files stay, the manifest records exactly them, no temp file or lock is left; run the export again to finish.
 
@@ -97,7 +100,7 @@ Besides the five settings above, these decide questions the scope leaves open. E
 | `export.unchanged_exit` | `success`: a re-export that writes nothing exits 0; `warn`: it exits 1 | `EXPORT_UNCHANGED_EXIT` |
 | `verify.scope` | `all_source_days`: every source day with content must have a matching file; `manifest_days`: only days recorded in the manifest are checked (handy after a partial export) | `VERIFY_SCOPE` |
 | `export.missing_files` | `rewrite`: an exported file you deleted is written again; `conflict`: it is reported as a conflict and not recreated | `EXPORT_MISSING_FILES` |
-| `lock.stale_requires_age` | `true`: a lock is removed only when it is over 1 hour old and its process is gone; `false`: removed whenever its process is gone | `LOCK_STALE_REQUIRES_AGE` |
+| `lock.stale_requires_age` | `false`: a lock whose process is gone is removed at once; `true`: removed only when it is also over 1 hour old | `LOCK_STALE_REQUIRES_AGE` |
 | `source.env_precedence` | `notehatch_first`: `NOTEHATCH_SOURCE` is used before `NOTEREPO_DATA_DIR`; `noterepo_first`: the other way round | `SOURCE_ENV_PRECEDENCE` |
 | `export.mtime_change_rewrites` | `true`: changing `export.mtime` marks existing files as changed so their modification times are updated; `false`: the change only affects files written for other reasons | `EXPORT_MTIME_CHANGE_REWRITES` |
 
@@ -107,14 +110,52 @@ Besides the five settings above, these decide questions the scope leaves open. E
 
 `verify` exits 1 when a note is missing, out of date or edited, or an image is missing/altered. Orphaned files (for example days since removed from the source) are listed but are not a failure. A re-export that finds everything unchanged exits 0.
 
-### Backing up and restoring
+## Running
 
-An export is just a folder: copy it to back it up, copy it back to restore, then run `notehatch verify`. The manifest has a format version; newer NoteHatch versions upgrade older manifests in place.
+After installing, run `notehatch` from any terminal (see "Try it" above for a first session). The usual routine is `notehatch locate`, then `notehatch export ~/NotesExport`; repeat the same `export` command whenever you want to update the backup. The tool is not a service: each command starts, does its job and exits, so there is nothing to keep running. A run that is stopped or killed can simply be started again at once.
+
+NoteHatch listens on no network port and starts with no data of its own; demo data exists only after you run `notehatch demo DIR`. There are no accounts or passwords: your operating-system user's file permissions are the only access control.
+
+## Upgrading
+
+Install the new version over the old one from the new project folder:
+
+```
+python -m pip install --upgrade .
+```
+
+Your export folders and config file are kept. Later versions have not been tested against this manifest format, so run `notehatch verify DIR` after upgrading to confirm the export is intact.
+
+## Backing up and restoring
+
+An export is just a folder: copy it to back it up (for example `cp -r ~/NotesExport ~/NotesExport-backup`), and copy it back to restore. Then run `notehatch verify ~/NotesExport --source <your NoteRepo folder>` to confirm it matches. The manifest has a format version. NoteHatch's only other state is its config file.
+
+## Troubleshooting
+
+* `notehatch: command not found`: the Python scripts folder is not on your PATH; use `python -m notehatch` instead, or reinstall with `pipx install .`.
+* "no NoteRepo database found" (exit 3): the message lists every path tried; pass `--source` with the folder or the `notes.sqlite3` file.
+* "NoteRepo is busy" (exit 3): the database stayed locked for over 5 seconds; try again.
+* "unsupported schema" (exit 4): only NoteRepo 1.2.0 was studied.
+* "another NoteHatch run holds the lock" (exit 5): another run is active. If none is, delete the named `.notehatch/lock` file. A lock left by a dead process is removed automatically.
+* Output folder refused (exit 5): it holds files NoteHatch did not write; choose another folder or use `--force`.
+* Manifest corrupt (exit 5): rerun with `--rebuild-manifest`.
+* A warning about an invalid date key or a dangling image reference: that row or link is skipped or left as it is; the rest is exported and the exit code is 1.
+
+## Known limitations
+
+* Only NoteRepo 1.2.0's database format is supported; the legacy `notes.json` and the `metadata` table are ignored.
+* The Linux and Windows default locations are unverified; use `--source` if the database is not found.
+* Output is flat Markdown only (no HTML, PDF, year/month folders, watch mode or import back into NoteRepo).
+* NoteHatch never deletes exported notes or images, so days removed from NoteRepo stay in the export folder.
+* Dependencies: none beyond Python 3.11+ and its standard library, so there is nothing to pin. The tests need `pytest` (`python -m pip install pytest`).
 
 ## Tests
 
+Run from the project folder, after installing:
+
 ```
-python -m unittest discover -s tests -t .
+python -m unittest tests.test_notehatch
+python -m pip install pytest
 ```
 
-The suite builds its own fixture databases (WAL-only writes, busy lock, NULL timestamps, empty/bare-marker rows, bad keys, every MIME type, dangling/repeated images, hash mismatches, ordinals, incremental classes, interrupt recovery, verify mismatches, settings).
+The first command runs the unit suite, which builds its own fixture databases. The last two run the end-to-end acceptance tests in `tests/acceptance` (present in the full source tree).
